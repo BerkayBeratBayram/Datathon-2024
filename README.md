@@ -50,57 +50,191 @@ Not: Bu README, `main.ipynb` içinde açıkça görülen kod ve loglar temel al�
 - Daha ayrıntılı eklemeler veya belirli bölümlerin (ör. FE sütun listesi, model parametre blokları) README'ye otomatik eklenmesini istiyorsanız söyleyin; ben notebook'u parse edip ilgili bilgileri otomatik çıkartırım ve README'ye eklerim.
 
 
-# Datathon 2024 — Proje Özeti
+# Datathon 2024 — Kapsamlı Proje Dokümantasyonu
 
-Bu depo, "Datathon 2024" yarışması için gerçekleştirdiğim analiz, öznitelik mühendisliği ve modelleme çalışmalarının tam kaydıdır. README'in amacı projeyi ve elde edilen kararları detaylı şekilde belgelemek; çalıştırma talimatı içermemektedir.
+Bu dosya, repository içindeki `main.ipynb`'de gerçekleştirilen tüm adımları, alınan kararları, üretilen özellikleri ve modelleme sürecini "eksiksiz" ve profesyonel bir şekilde dökümante eder. Aşağıda hem teknik ayrıntılar hem de proje yönetişimine dair bilgiler yer alır.
 
-Projenin amacı
-- Verilen eğitim verisinden anlamlı öznitelikler çıkararak hedef değişken üzerinde yüksek doğruluklu tahminler üretmek.
-- Modelleri karşılaştırmak, en iyi yaklaşımı seçmek ve son tahminleri örnek `submission` formatında sunmak.
+Özet (TL;DR)
+- Ana çalışma: `main.ipynb` — veri keşfi, temizleme, öznitelik mühendisliği (FE), modelleme ve sonuç değerlendirme adımları burada yer almaktadır.
+- Veri: `data/` klasörü (ham CSV dosyaları, sample submission ve üretilmiş submissionlar).
+- Eğitim logları: `catboost_info/` (CatBoost öğrenme hataları, tfevents, vb.).
 
----
+İçindekiler
+- Proje amacı
+- Depo yapısı ve veri envanteri
+- EDA: önemli bulgular
+- Ön işleme adımları (kod örnekleriyle)
+- Oluşturulan öznitelikler (özet ve nasıl üretildikleri)
+- Modelleme ayrıntıları (parametre blokları, CV, erken durdurma)
+- Sonuçlar ve log konumu
+- Reproducibility (tekrar üretilebilirlik) notları
+- Riskler, kısıtlar ve alınan önlemler
+- İleri adımlar (planımız)
+- Ek: Git LFS ve büyük dosyalar yönetimi
 
-## Profesyonel Proje Özeti
+1) Proje amacı
+----------------
+Bu çalışmanın amacı Datathon 2024 veri setinden anlamlı özellikler çıkarıp, güvenilir doğrulama prosedürleri ile en iyi tahmin performansını elde etmek, elde edilen kararları belgelemek ve sonuçların yeniden üretilebilir olmasını sağlamaktır.
 
-Bu proje, Datathon 2024 yarışmasında verilen veri seti üzerinde gerçekleştirilen sonuca odaklı analiz ve modelleme çalışmasının belgelenmiş hâlidir. Amacımız, veri kaynaklarını dikkatle inceleyip uygun ön işleme ve öznitelik mühendisliği adımlarıyla model performansını maksimize etmek ve elde edilen içgörüleri açıklamaktır.
+2) Depo yapısı ve veri envanteri
+-------------------------------
+Önemli dosyalar ve klasörler (kök dizin):
+- `main.ipynb` — ana analiz ve modelleme not defteri
+- `data/` — veri dosyaları:
+	- feature_importances_is2016.csv
+	- il_ilce.csv
+	- sample_submission.csv
+	- submission_catboost.csv
+	- submission_catboost_is2016_full.csv
+	- submission_catboost_is2016_il_full.csv
+	- test_x.csv
+	- train.csv
+	- universiteler.xlsx
+- `catboost_info/` — CatBoost eğitim logları (`learn_error.tsv`, `test_error.tsv`, `events.out.tfevents` vb.)
 
-Dokümanda kısa olarak aşağılarını bulacaksınız:
-- Problem tanımı ve hedef
-- Veri setinin yapısı ve önemli gözlemler
-- Uygulanan metodoloji (ön işleme, öznitelik mühendisliği, modelleme)
-- Deneylerin özeti ve en iyi sonuçlar
-- Öğrenimler, kısıtlar ve gelecek adımlar (planlarımız)
+3) EDA — Öne çıkan bulgular
+--------------------------------
+- Hedef değişken (`Degerlendirme Puani`) dağılımı: histogram, boxplot ve KDE analizleri ile incelenmiş; uç değerler (outliers) IQR tabanlı kontrollerle tespit edilmiştir.
+- Zaman ve kategori analizleri: `Basvuru Yili` trendleri, `Cinsiyet`, `Universite Turu` gibi kategoriklerin hedefle ilişkileri `groupby(...).agg()` ile özetlenmiştir.
+- Eksik veri: bazı sütunlarda anlamlı eksiklikler vardır; eksik değer stratejileri sütun bazında uygulanmıştır (aşağıda detaylar).
 
-Bu README, proje kararlarını ve bulguları açık ve profesyonel bir biçimde ifade etmek için yazıldı; teknik komutlar veya ortam kurulum adımlarından kaçınılmıştır.
+4) Ön işleme — Gerçekten uygulanan adımlar (kod örnekleri)
+---------------------------------------------------------
+Not: aşağıdaki kod parçacıkları `main.ipynb`'de kullanılan örnek yaklaşımları temsil eder — tam kod notebook içinde mevcuttur.
 
-## Problem Tanımı
+- String normalizasyonu ve temizleme
 
-Yarışma, katılımcıdan verilen girdiler üzerinden hedef değişkeni tahmin etmesini beklemektedir. Projenin hedefi yalnızca yüksek doğruluk elde etmek değil; aynı zamanda hangi özniteliklerin neden etkili olduğunu açıklamak ve modelin güvenilirliğini değerlendirmektir.
+```python
+# örnek: metin normalize fonksiyonu
+def normalize_text(s):
+		s_norm = s.fillna("").astype(str).str.lower()
+		# noktalama, diakritik temizliği vs.
+		s_norm = s_norm.apply(lambda x: ''.join(ch for ch in x if ch.isalnum() or ch.isspace()))
+		s_norm = s_norm.replace({'-': np.nan, 'yok': np.nan, '': np.nan})
+		return s_norm
 
-## Veri Seti — Genel Bakış
+train['some_text_col'] = normalize_text(train['some_text_col'])
+```
 
-Veri, üst düzey olarak demografik, konumsal ve işlemle ilgili ölçümler içerir. Çalışma sırasında tespit edilen önemli noktalar:
-- Eksik veri oranları bazı sütunlarda anlamlı seviyede; hedefe bağlı imputasyon stratejileri uygulandı.
-- Kategorik değişkenlerin kardinalitesi yüksek olabilmektedir; bunun için hedef-odaklı özetler ve frekans temelli öznitelikler üretildi.
-- Bazı özellikler dağılımının çarpık olması gözlendi; uygun dönüşümler uygulandı.
+- Kategorik tutarlılık: `fillna('__nan__').astype(str)` kullanımı (birden çok hücrede)
 
-Detaylı veri keşfi ve grafikler `main.ipynb` içinde adım adım yer almaktadır.
+```python
+for c in categorical_cols:
+		X[c] = X[c].fillna('__nan__').astype(str)
+		X_test[c] = X_test[c].fillna('__nan__').astype(str)
+```
 
-## Metodoloji
+- Grup-özet (target-agg) üretimi — örnek `ikamet_il`:
 
-1) Ön İşleme ve Temizlik
-- Eksik değer yaklaşımı: eksik verinin yapısına göre kategorik ortalama/mod, sayısal için grup-temelli ortalama veya model tabanlı imputasyon.
-- Tutarsız/gürültülü kayıtlar filtrelendi veya sınırlandırıldı.
+```python
+il_stats = train.groupby('ikamet_il')['Degerlendirme Puani'].agg(['mean','count']).rename(
+		columns={'mean':'ikamet_il_mean','count':'ikamet_il_count'})
+train = train.merge(il_stats, left_on='ikamet_il', right_index=True, how='left')
+test = test.merge(il_stats, left_on='ikamet_il', right_index=True, how='left')
 
-2) Özellik Mühendisliği
-- Coğrafi/konumsal özetler: il/ilçe seviyesinde hedef ve frekans istatistikleri eklendi.
-- Kategori özetleri: yüksek kardinaliteli değişkenler için hedef-encoding ve segment bazlı özetler üretildi.
-- Etkileşim ve türevler: önem taşıyan değişken kombinasyonları, oransal ve log-dönüşümleri kullanılarak zenginleştirildi.
+# Eksikler için default
+train['ikamet_il_mean'] = train['ikamet_il_mean'].fillna(train['Degerlendirme Puani'].mean())
+test['ikamet_il_mean'] = test['ikamet_il_mean'].fillna(train['Degerlendirme Puani'].mean())
+train['ikamet_il_freq'] = train['ikamet_il_freq'].fillna(0.0)
+test['ikamet_il_freq'] = test['ikamet_il_freq'].fillna(0.0)
+```
 
-3) Modelleme ve Doğrulama
-- Denenen modeller: CatBoost, LightGBM, XGBoost gibi ağaç tabanlı yöntemler; basit doğrusal modeller karşılaştırma amaçlı kullanıldı.
-- Doğrulama: veri yapısına göre stratified K-fold veya blok (zaman/segment) doğrulama stratejileri uygulandı.
-- Ensemble: en iyi birkaç modeli ağırlıklı ortalamayla ensemble ederek nihai tahmin üretildi.
+- Aykırı değer kontrolü — IQR yöntemi ile tespit/inceleme (notebook'ta grafiklerle desteklenmiş)
+
+5) Üretilen öznitelikler (FE) — özet
+------------------------------------------------
+- Kesin olarak oluşturulan sütun örnekleri (notebook'tan tespit edilmiştir):
+	- `ikamet_il_mean`, `ikamet_il_freq` (konumsal group mean / count)
+	- farklı kategorik sütunlar için `_<col>_mean`, `_<col>_count` şeklinde türetilmiş group-agg sütunları
+	- metin sütunlarından normalize edilmiş versiyonlar (ör. küçük harf, noktalama temizlenmiş)
+
+Not: Notebook'ta FE'lerin tam listesini çıkarıp README'ye tablo halinde ekleyebilirim; isterseniz hemen çıkarıp eklerim.
+
+6) Modelleme — uygulanan ve bulunan ayarlar
+------------------------------------------------
+- Model ailesi: CatBoost (CatBoostRegressor kullanıldı, `from catboost import Pool, CatBoostRegressor` notebook içinde mevcut).
+- Cross-validation: `KFold(n_splits=5, shuffle=True, random_state=42)` ve bazı denemelerde `n_splits=3` kullanılmıştır.
+- Hiperparametre yaklaşımı: parametreler genellikle elle/deneme-yanılma ile seçilmiş; notebook'ta şu örnek bloklar yer alır:
+
+```python
+params = {
+		'depth': 8,
+		'learning_rate': 0.06,
+		'iterations': 800,
+		'random_state': 42,
+}
+
+# başka bir deneme
+params = {
+		'depth': 6,
+		'learning_rate': 0.08,
+		'iterations': 300,
+		'random_state': 42,
+}
+```
+
+- Early stopping: CatBoost'un overfitting detector'ı kullanıldı; eğitim loglarında "Stopped by overfitting detector" ve "Shrink model to first N iterations" gibi kayıtlar var.
+- Ensemble: notebook içinde basit ensemble/averaging adımları veya birkaç submission kombinasyonu bulunabilir (submission dosyalarına bakınız).
+
+7) Sonuçlar, metrikler ve loglar
+-------------------------------------
+- Tüm eğitim logları: `catboost_info/` içinde.
+- Üretilmiş submission dosyaları: `data/` içinde ilgili CSV'ler.
+- Not: README'ye doğrudan en iyi skor eklemek isterseniz notebook'taki final metric hücresini parse edip buraya otomatik ekleyebilirim.
+
+8) Reproducibility — tekrar üretme notları
+-------------------------------------------
+- Seed: notebook genelinde `random_state=42` benzeri sabitler kullanılmıştır; kesin seed'ler model ve CV hücrelerinde yer almaktadır.
+- Ortam: Python + pandas + CatBoost (notebook başında kütüphaneler listelenmiştir). `requirements.txt` yoksa ben bir tane çıkarıp ekleyebilirim.
+
+9) Riskler, kısıtlar ve alınan önlemler
+----------------------------------------
+- Veri sızıntısı (leakage): Grup-ortalama FE'leri kullanıldığında leakage riski vardır; bunu azaltmak için CV stratejileri uygulandı, fakat tamamen ortadan kalkmadığını not ediyoruz.
+- Büyük dosyalar: depoda ham veriler bulunduğu için klonlama maliyeti yüksek — Git LFS önerilir.
+- Hiperparametre araması sınırlı: otomatik HPO yapılmadığı için daha iyi parametreler bulunabilir.
+
+10) Planımız — kısa, orta ve uzun vadeli adımlar
+--------------------------------------------------
+- Kısa vadede (1 hafta):
+	- Depo temizliği: Git LFS'e büyük dosyaları taşıma, geçmişi optimize etme.
+	- `main.ipynb` içinde FE listesini ve final parametre bloklarını README'ye tablo olarak ekleme.
+- Orta vadede (2–3 hafta):
+	- Sistematik HPO (Optuna/Bayesian) ve stacking/ensembling denemeleri.
+	- SHAP ile öznitelik açıklanabilirliği.
+- Uzun vadede:
+	- Üretime hazır pipeline, kod modülerizasyonu ve endpoint/servis entegrasyonu.
+
+Ek A: Git LFS — büyük dosyalar yönetimi
+---------------------------------------
+Eğer depodaki büyük dosyaları LFS'e taşımak isterseniz önerilen adımlar:
+
+```bash
+# 1) Git LFS kur (Windows için):
+choco install git-lfs    # veya https://git-lfs.github.com/ yönergeleri
+git lfs install
+
+# 2) İzlenecek uzantıları ekle
+git lfs track "data/*.csv"
+git add .gitattributes
+
+# 3) Mevcut büyük dosyaları LFS'e taşıma (örnek: BFG veya git filter-repo kullanın)
+# Önemli: geçmişi değiştirecektir, dikkatli olun ve önce yedek alın.
+```
+
+Ek B: İleri otomasyon
+----------------------
+- İsterseniz ben notebook'u parse edip aşağıyı otomatik ekleyebilirim:
+	- FE sütunlarının tam listesi ve hangi hücrede üretildiği
+	- Model parametre bloklarının tam çıktısı
+	- Notebook'ta kayıtlı en iyi skorun otomatik alınması ve README'ye eklenmesi
+
+Sonuç
+------
+Bu README, `main.ipynb`'de açıkça bulunan kod ve loglara dayanarak hazırlanmıştır. Daha fazla otomatik doğrulama veya genişletme isterseniz hangi bilgiyi eklememi istediğinizi söyleyin; örn. FE listesini çıkartıp tablo olarak ekleyeyim veya `requirements.txt` oluşturayım.
+
+İletişim
+--------
+- Repo sahibi: BerkayBeratBayram (repo root altında daha fazla iletişim bilgisi eklenebilir).
 
 4) Hiperparametre Optimizasyonu
 - Random search ve/veya Bayesian optimizasyon yaklaşımları ile model parametreleri incelendi; hesaplama maliyetine göre erken durdurma kullanıldı.
