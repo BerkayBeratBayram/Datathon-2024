@@ -37,5 +37,5 @@ ENV/
 # macOS
 .DS_Store
 
-# Data (do not commit large data files)
-data/
+# Data (committed on user request)
+# Note: large files may cause push failures; consider Git LFS if needed.
