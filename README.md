@@ -1,3 +1,53 @@
+# Datathon 2024 — Proje Özeti (Gerçek Adımlar)
+
+Bu depo, Datathon 2024 yarışması için gerçekleştirdiğim çalışma notlarının, veri keşfinin ve modelleme denemelerinin eksiksiz kaydıdır. Aşağıda README'de yalnızca notebook'ta gerçekten uygulanan ve kodla doğrulanabilen adımları profesyonel, açık ve insan dilinde özetliyorum.
+
+Özet
+- Çalışma ana notebook: `main.ipynb` (tüm analiz, FE ve model adımları burada yer alır).
+- Veri ve örnek çıktı dosyaları: `data/` klasörü.
+- Eğitim logları ve model çıktıları: `catboost_info/`.
+
+1) Veri keşfi (EDA)
+- Hedef değişkenin dağılımı incelendi: histogram, boxplot ve KDE ile merkezi eğilim ve aykırılar analiz edildi.
+- Kategorik ve sayısal sütunların benzersiz değer, eksik değer oranları ve temel istatistikleri tablo/çizimlerle gözlemlendi (`groupby` ve `agg` kullanımları yoğun şekilde var).
+
+2) Temizlik ve string normalizasyonu
+- Metin sütunlarında `lower()` ile küçük harfe çevirme, gereksiz boşluk ve noktalama temizliği uygulandı.
+- Bazı özel gösterimler (`'-'`, `'yok'`, boş string) `NaN`'a dönüştürüldü.
+- Kategorik sütunlar model girişi öncesi `fillna('__nan__')` ile doldurulup `astype(str)` ile tutarlı string formata getirildi (notebook'ta birden fazla hücrede bu işlem uygulanıyor).
+
+3) Özellik mühendisliği — gerçekten oluşturulanlar
+- Grup-özetleri: `ikamet_il` gibi konumsal değişkenler için hedefin ortalaması ve frekansı hesaplandı ve `ikamet_il_mean`, `ikamet_il_freq` gibi yeni sütunlar üretildi. Bu sütunlar eğitim setinde oluşan `NaN` değerler için eğitim hedefinin ortalamasıyla dolduruldu; test seti için benzer doldurmalar uygulandı.
+- Bazı kategorik sütunlar için `groupby(...).agg(['mean','count'])` gibi özet tablolardan türetilmiş özellikler eklendi.
+- Genel olarak öznitelik üretimi notebook içinde açıkça yer almakta; bu adımlar FE (feature engineering) bölümünde toplu olarak `Temizleme + FE tamamlandı` şeklinde notlanmıştır.
+
+4) Modelleme — uygulanan yaklaşım
+- Ana model: CatBoostRegressor (CatBoost kullanımı ve `Pool` yapıları notebook'ta var).
+- Doğrulama: KFold cross-validation kullanıldı (örneğin `KFold(n_splits=5, shuffle=True, random_state=42)` bazı denemelerde `n_splits=3` ile). Bu doğrulama stratejisi notebook'ta açıkça kullanılmıştır.
+- Hiperparametreler: notebook'ta parametreler çoğunlukla sabit olarak ayarlanmıştır (ör. `depth`, `learning_rate`, `iterations`, `random_state`). Örnek parametre blokları mevcuttur; otomatik RandomizedSearch veya Bayesian optimizasyonu kullanılmamıştır.
+- Eğitim sırasında CatBoost'un overfitting detector/early stopping çıktıları gözlemlenmiş ve bazı modeller "Shrink model to first N iterations" gibi loglarla kırpılmıştır.
+
+5) Model çıktıları ve değerlendirme
+- Eğitim logları `catboost_info/` dizininde tutulur (learn/test error, tfevents vb.).
+- Nihai tahmin dosyaları `data/` içinde `sample_submission.csv` örneği ve oluşturulan submission CSV'leri olarak bulunmaktadır.
+
+6) Olmayan/uygulanmayan yöntemler (notebook doğrulamasına göre)
+- Otomatik hiperparametre optimizasyonu (Optuna / RandomizedSearchCV / Bayesian) uygulanmamıştır.
+- `np.log`, `np.log1p` veya benzeri açık log-dönüşümleri notebook'ta tespit edilmedi — hedef üzerinde doğrudan log dönüşümü yapılmamış.
+
+7) Teknik notlar ve güvenilirlik
+- Kodda sıkça `fillna('__nan__').astype(str)` yaklaşımı kullanılması, kategorik verileri modelin doğrudan tüketmesi için hazırlanmıştır.
+- Grup-ortalama (group-mean) özellikleri açıkça yaratılmış ve eksik değerler mantıklı bir default (eğitim hedef ortalaması) ile doldurulmuştur; bu, pratik bir target-agg yaklaşımıdır ancak k-fold içinde leakage riskine dikkat edilmelidir — notebook'ta doğrulama stratejileri ile bu risk azaltılmaya çalışılmıştır.
+
+8) Kısa aksiyon planı (önerilen, notebook'ta henüz yapılmamış veya kısmi yapılmış)
+- (İleri) Sistematik hiperparametre optimizasyonu (Optuna veya Bayesian) ile performans artışı aranmalı.
+- (İleri) Büyük dosyalar için Git LFS'e taşıma ve depo geçmişinin temizlenmesi.
+- (İleri) Model açıklanabilirliği: SHAP analizi ile öznitelik katkılarının detaylandırılması.
+
+Not: Bu README, `main.ipynb` içinde açıkça görülen kod ve loglar temel alınarak yazılmıştır. İsterseniz notebook'tan otomatik olarak çekip README'ye eklenecek spesifik en iyi skor/metric değerlerini, kullanılan parametre bloklarını ve oluşturulan FE sütunlarının tam listesini ekleyebilirim.
+
+İletişim
+- Daha ayrıntılı eklemeler veya belirli bölümlerin (ör. FE sütun listesi, model parametre blokları) README'ye otomatik eklenmesini istiyorsanız söyleyin; ben notebook'u parse edip ilgili bilgileri otomatik çıkartırım ve README'ye eklerim.
 
 
 # Datathon 2024 — Proje Özeti
